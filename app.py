@@ -159,8 +159,8 @@ else:
 
         st.write("### Evaluation")
         st.write(result)
-
-        if "Correct" in result:
+        
+        if result.strip().startswith("Result: Correct"):
             st.session_state.score += 1
 
         if st.session_state.question_no < st.session_state.total_questions:
