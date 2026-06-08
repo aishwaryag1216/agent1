@@ -23,7 +23,7 @@ except Exception as e:
 # -----------------------------
 # MODEL (USER REQUESTED)
 # -----------------------------
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-3-flash-preview")
 st.success("Gemini Model Initialized")
 
 # -----------------------------
