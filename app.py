@@ -1,76 +1,126 @@
 import streamlit as st
 import google.generativeai as genai
 
+# ----------------------------
 # Configure Gemini API
-genai.configure(api_key="AQ.Ab8RN6KkRNMrcDhw2xF_kOqYsOCYcLShS4FEKRkzJjJ_60uGcQ")
+# ----------------------------
+try:
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+except Exception:
+    st.error(
+        "Google API key not found. "
+        "Please add GOOGLE_API_KEY to Streamlit Secrets."
+    )
+    st.stop()
 
-# Load Model
-model = genai.GenerativeModel("gemini-3.1-flash-lite")
+# ----------------------------
+# Load Gemini Model
+# ----------------------------
+try:
+    model = genai.GenerativeModel("gemini-2.5-flash")
+except Exception as e:
+    st.error(f"Model initialization error: {e}")
+    st.stop()
 
-# Page Title
+# ----------------------------
+# Page Configuration
+# ----------------------------
 st.set_page_config(page_title="Mock Interview Agent")
 
-st.title("🎤 Mock Interview ")
+st.title("🎤 Mock Interview Agent")
 
+# ----------------------------
 # Session State Initialization
-if "started" not in st.session_state:
-    st.session_state.started = False
+# ----------------------------
+defaults = {
+    "started": False,
+    "score": 0,
+    "question_no": 0,
+    "current_question": "",
+    "candidate_name": "",
+    "topic": "",
+    "difficulty": "",
+    "total_questions": 5,
+}
 
-if "score" not in st.session_state:
-    st.session_state.score = 0
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-if "question_no" not in st.session_state:
-    st.session_state.question_no = 0
-
-if "current_question" not in st.session_state:
-    st.session_state.current_question = ""
-
-if "candidate_name" not in st.session_state:
-    st.session_state.candidate_name = ""
-
-if "topic" not in st.session_state:
-    st.session_state.topic = ""
-
-if "difficulty" not in st.session_state:
-    st.session_state.difficulty = ""
-
-if "total_questions" not in st.session_state:
-    st.session_state.total_questions = 5
-
-
-# Generate Question Function
+# ----------------------------
+# Generate Question
+# ----------------------------
 def generate_question(topic, difficulty):
 
     prompt = f"""
-    You are an expert technical interviewer.
+You are an expert technical interviewer.
 
-    Topic: {topic}
+Topic: {topic}
 
-    Difficulty Level: {difficulty}
+Difficulty Level: {difficulty}
 
-    Rules:
+Rules:
 
-    Easy:
-    - Ask basic concepts and definitions.
+Easy:
+- Ask basic concepts and definitions.
 
-    Medium:
-    - Ask practical and application-oriented questions.
+Medium:
+- Ask practical and application-oriented questions.
 
-    Hard:
-    - Ask advanced concepts, coding problems,
-      optimization techniques, and real-world scenarios.
+Hard:
+- Ask advanced concepts, coding problems,
+  optimization techniques, and real-world scenarios.
 
-    Generate ONLY ONE interview question.
+Generate ONLY ONE interview question.
 
-    Do not provide the answer.
-    """
+Do not provide the answer.
+"""
 
-    response = model.generate_content(prompt)
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        st.error(f"Question generation failed: {e}")
+        return "Unable to generate question."
 
-    return response.text.strip()
+# ----------------------------
+# Evaluate Answer
+# ----------------------------
+def evaluate_answer(question, answer):
 
+    prompt = f"""
+Question:
+{question}
 
+Candidate Answer:
+{answer}
+
+Evaluate the answer.
+
+Return EXACTLY in this format:
+
+Result: Correct
+
+Correct Answer:
+<correct answer>
+
+OR
+
+Result: Wrong
+
+Correct Answer:
+<correct answer>
+"""
+
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Evaluation Error: {e}"
+
+# ----------------------------
 # Start Screen
+# ----------------------------
 if not st.session_state.started:
 
     candidate_name = st.text_input("Candidate Name")
@@ -91,6 +141,14 @@ if not st.session_state.started:
 
     if st.button("Start Interview"):
 
+        if not candidate_name.strip():
+            st.warning("Please enter candidate name.")
+            st.stop()
+
+        if not topic.strip():
+            st.warning("Please enter interview topic.")
+            st.stop()
+
         st.session_state.started = True
         st.session_state.score = 0
         st.session_state.question_no = 1
@@ -107,8 +165,9 @@ if not st.session_state.started:
 
         st.rerun()
 
-
+# ----------------------------
 # Interview Screen
+# ----------------------------
 else:
 
     st.subheader(
@@ -125,33 +184,14 @@ else:
 
     if st.button("Submit Answer"):
 
-        eval_prompt = f"""
-        Question:
-        {st.session_state.current_question}
+        if not answer.strip():
+            st.warning("Please enter your answer.")
+            st.stop()
 
-        Candidate Answer:
-        {answer}
-
-        Evaluate the answer.
-
-        Return EXACTLY in this format:
-
-        Result: Correct
-
-        Correct Answer:
-        <correct answer>
-
-        OR
-
-        Result: Wrong
-
-        Correct Answer:
-        <correct answer>
-        """
-
-        evaluation = model.generate_content(eval_prompt)
-
-        feedback = evaluation.text
+        feedback = evaluate_answer(
+            st.session_state.current_question,
+            answer
+        )
 
         st.write("### Evaluation")
         st.write(feedback)
@@ -159,7 +199,6 @@ else:
         if feedback.strip().startswith("Result: Correct"):
             st.session_state.score += 1
 
-        # Next Question
         if (
             st.session_state.question_no
             < st.session_state.total_questions
@@ -174,7 +213,6 @@ else:
 
             st.rerun()
 
-        # Final Report
         else:
 
             st.success("✅ Interview Completed")
@@ -185,29 +223,11 @@ else:
             percentage = (score / total) * 100
 
             st.write("## Final Report")
-
-            st.write(
-                f"Candidate: "
-                f"{st.session_state.candidate_name}"
-            )
-
-            st.write(
-                f"Topic: "
-                f"{st.session_state.topic}"
-            )
-
-            st.write(
-                f"Difficulty: "
-                f"{st.session_state.difficulty}"
-            )
-
-            st.write(
-                f"Score: {score}/{total}"
-            )
-
-            st.write(
-                f"Percentage: {percentage:.2f}%"
-            )
+            st.write(f"Candidate: {st.session_state.candidate_name}")
+            st.write(f"Topic: {st.session_state.topic}")
+            st.write(f"Difficulty: {st.session_state.difficulty}")
+            st.write(f"Score: {score}/{total}")
+            st.write(f"Percentage: {percentage:.2f}%")
 
             if percentage >= 80:
                 performance = "Excellent"
@@ -218,15 +238,11 @@ else:
             else:
                 performance = "Needs Improvement"
 
-            st.write(
-                f"Performance: {performance}"
-            )
+            st.write(f"Performance: {performance}")
 
             if st.button("Restart Interview"):
 
-                st.session_state.started = False
-                st.session_state.score = 0
-                st.session_state.question_no = 0
-                st.session_state.current_question = ""
+                for key, value in defaults.items():
+                    st.session_state[key] = value
 
                 st.rerun()
