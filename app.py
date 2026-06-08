@@ -1,15 +1,15 @@
 import streamlit as st
 import google.generativeai as genai
+import json
 
 # -----------------------------
 # Page Config
 # -----------------------------
 st.set_page_config(page_title="Mock Interview Agent")
-
 st.title("🎤 Mock Interview Agent")
 
 # -----------------------------
-# API Key
+# API KEY
 # -----------------------------
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
@@ -20,14 +20,14 @@ except Exception as e:
     st.stop()
 
 # -----------------------------
-# IMPORTANT: Correct Model
+# MODEL (YOUR REQUESTED MODEL)
 # -----------------------------
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
 st.success("Gemini Model Initialized")
 
 # -----------------------------
-# Session State
+# SESSION STATE
 # -----------------------------
 defaults = {
     "started": False,
@@ -45,7 +45,7 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 # -----------------------------
-# Generate Question
+# GENERATE QUESTION
 # -----------------------------
 def generate_question(topic, difficulty):
 
@@ -55,50 +55,57 @@ You are an expert interviewer.
 Topic: {topic}
 Difficulty: {difficulty}
 
-Ask ONLY ONE interview question.
+Generate ONLY ONE interview question.
 Do NOT provide answer.
 Return only the question.
 """
 
     try:
         response = model.generate_content(prompt)
-
-        # Debug (important for fixing)
-        if hasattr(response, "text"):
-            return response.text.strip()
-
-        return "No response text received."
+        return response.text.strip()
 
     except Exception as e:
         st.error("QUESTION GENERATION ERROR")
-        st.error(type(e).__name__)
         st.error(str(e))
         return "Unable to generate question."
 
 # -----------------------------
-# Evaluate Answer
+# EVALUATE ANSWER (FIXED LOGIC)
 # -----------------------------
 def evaluate_answer(question, answer):
 
     prompt = f"""
+You are an AI interviewer evaluator.
+
 Question: {question}
 Answer: {answer}
 
-Evaluate correctness and give:
-Result: Correct / Wrong
-Correct Answer: <text>
+Return ONLY valid JSON:
+
+{{
+  "result": "Correct" or "Wrong",
+  "correct_answer": "short answer"
+}}
 """
 
     try:
         response = model.generate_content(prompt)
 
-        return response.text if hasattr(response, "text") else "No response"
+        data = json.loads(response.text)
+
+        return data
 
     except Exception as e:
-        return f"Evaluation error: {e}"
+        st.error("EVALUATION ERROR")
+        st.error(str(e))
+
+        return {
+            "result": "Wrong",
+            "correct_answer": "Unable to evaluate"
+        }
 
 # -----------------------------
-# Start Screen
+# START SCREEN
 # -----------------------------
 if not st.session_state.started:
 
@@ -134,7 +141,7 @@ if not st.session_state.started:
         st.rerun()
 
 # -----------------------------
-# Interview Screen
+# INTERVIEW SCREEN
 # -----------------------------
 else:
 
@@ -158,14 +165,21 @@ else:
         )
 
         st.write("### Evaluation")
-        st.write(result)
-        
-        if result.strip().startswith("Result: Correct"):
+
+        st.write("Result:", result["result"])
+        st.write("Correct Answer:", result["correct_answer"])
+
+        # -----------------------------
+        # FIXED SCORING LOGIC
+        # -----------------------------
+        if result["result"].lower() == "correct":
             st.session_state.score += 1
 
+        # NEXT QUESTION
         if st.session_state.question_no < st.session_state.total_questions:
 
             st.session_state.question_no += 1
+
             st.session_state.current_question = generate_question(
                 st.session_state.topic,
                 st.session_state.difficulty
@@ -173,6 +187,7 @@ else:
 
             st.rerun()
 
+        # FINAL RESULT
         else:
 
             st.success("Interview Completed")
