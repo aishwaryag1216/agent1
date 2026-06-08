@@ -51,36 +51,20 @@ for key, value in defaults.items():
 # Generate Question
 # ----------------------------
 def generate_question(topic, difficulty):
-
     prompt = f"""
-You are an expert technical interviewer.
+    Topic: {topic}
+    Difficulty: {difficulty}
 
-Topic: {topic}
-
-Difficulty Level: {difficulty}
-
-Rules:
-
-Easy:
-- Ask basic concepts and definitions.
-
-Medium:
-- Ask practical and application-oriented questions.
-
-Hard:
-- Ask advanced concepts, coding problems,
-  optimization techniques, and real-world scenarios.
-
-Generate ONLY ONE interview question.
-
-Do not provide the answer.
-"""
+    Generate one interview question only.
+    """
 
     try:
         response = model.generate_content(prompt)
+        st.write("DEBUG RESPONSE:", response)
         return response.text.strip()
+
     except Exception as e:
-        st.error(f"Question generation failed: {e}")
+        st.error(f"FULL ERROR: {str(e)}")
         return "Unable to generate question."
 
 # ----------------------------
