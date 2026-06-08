@@ -1,37 +1,44 @@
 import streamlit as st
 import google.generativeai as genai
 
-# ----------------------------
-# Configure Gemini API
-# ----------------------------
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-except Exception:
-    st.error(
-        "Google API key not found. "
-        "Please add GOOGLE_API_KEY to Streamlit Secrets."
-    )
-    st.stop()
-
-# ----------------------------
-# Load Gemini Model
-# ----------------------------
-try:
-    model = genai.GenerativeModel("gemini-2.5-flash")
-except Exception as e:
-    st.error(f"Model initialization error: {e}")
-    st.stop()
-
-# ----------------------------
-# Page Configuration
-# ----------------------------
+# -----------------------------------
+# Page Config
+# -----------------------------------
 st.set_page_config(page_title="Mock Interview Agent")
 
 st.title("🎤 Mock Interview Agent")
 
-# ----------------------------
+# -----------------------------------
+# Load API Key from Streamlit Secrets
+# -----------------------------------
+try:
+    api_key = st.secrets["GOOGLE_API_KEY"]
+
+    st.success("✅ API Key Loaded")
+
+    genai.configure(api_key=api_key)
+
+except Exception as e:
+    st.error("❌ GOOGLE_API_KEY not found in Streamlit Secrets")
+    st.error(str(e))
+    st.stop()
+
+# -----------------------------------
+# Load Gemini Model
+# -----------------------------------
+try:
+    model = genai.GenerativeModel("gemini-2.5-pro")
+
+    st.success("✅ Gemini Model Initialized")
+
+except Exception as e:
+    st.error("❌ Model Initialization Failed")
+    st.error(str(e))
+    st.stop()
+
+# -----------------------------------
 # Session State Initialization
-# ----------------------------
+# -----------------------------------
 defaults = {
     "started": False,
     "score": 0,
@@ -47,29 +54,40 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# ----------------------------
+# -----------------------------------
 # Generate Question
-# ----------------------------
+# -----------------------------------
 def generate_question(topic, difficulty):
-    prompt = f"""
-    Topic: {topic}
-    Difficulty: {difficulty}
 
-    Generate one interview question only.
-    """
+    prompt = f"""
+You are an expert technical interviewer.
+
+Topic: {topic}
+
+Difficulty: {difficulty}
+
+Generate ONLY ONE interview question.
+
+Do not provide the answer.
+"""
 
     try:
         response = model.generate_content(prompt)
-        st.write("DEBUG RESPONSE:", response)
-        return response.text.strip()
+
+        if hasattr(response, "text") and response.text:
+            return response.text.strip()
+
+        return "No question generated."
 
     except Exception as e:
-        st.error(f"FULL ERROR: {str(e)}")
+        st.error("❌ Question Generation Error")
+        st.error(type(e).__name__)
+        st.error(str(e))
         return "Unable to generate question."
 
-# ----------------------------
+# -----------------------------------
 # Evaluate Answer
-# ----------------------------
+# -----------------------------------
 def evaluate_answer(question, answer):
 
     prompt = f"""
@@ -98,13 +116,18 @@ Correct Answer:
 
     try:
         response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"Evaluation Error: {e}"
 
-# ----------------------------
+        if hasattr(response, "text"):
+            return response.text
+
+        return "Evaluation failed."
+
+    except Exception as e:
+        return f"Evaluation Error: {type(e).__name__} - {str(e)}"
+
+# -----------------------------------
 # Start Screen
-# ----------------------------
+# -----------------------------------
 if not st.session_state.started:
 
     candidate_name = st.text_input("Candidate Name")
@@ -112,7 +135,7 @@ if not st.session_state.started:
     topic = st.text_input("Interview Topic")
 
     difficulty = st.selectbox(
-        "Select Difficulty",
+        "Difficulty",
         ["Easy", "Medium", "Hard"]
     )
 
@@ -126,11 +149,11 @@ if not st.session_state.started:
     if st.button("Start Interview"):
 
         if not candidate_name.strip():
-            st.warning("Please enter candidate name.")
+            st.warning("Enter candidate name")
             st.stop()
 
         if not topic.strip():
-            st.warning("Please enter interview topic.")
+            st.warning("Enter interview topic")
             st.stop()
 
         st.session_state.started = True
@@ -149,9 +172,9 @@ if not st.session_state.started:
 
         st.rerun()
 
-# ----------------------------
+# -----------------------------------
 # Interview Screen
-# ----------------------------
+# -----------------------------------
 else:
 
     st.subheader(
@@ -169,7 +192,7 @@ else:
     if st.button("Submit Answer"):
 
         if not answer.strip():
-            st.warning("Please enter your answer.")
+            st.warning("Please enter an answer")
             st.stop()
 
         feedback = evaluate_answer(
@@ -180,7 +203,7 @@ else:
         st.write("### Evaluation")
         st.write(feedback)
 
-        if feedback.strip().startswith("Result: Correct"):
+        if feedback.startswith("Result: Correct"):
             st.session_state.score += 1
 
         if (
@@ -199,19 +222,29 @@ else:
 
         else:
 
-            st.success("✅ Interview Completed")
-
             score = st.session_state.score
             total = st.session_state.total_questions
 
             percentage = (score / total) * 100
 
+            st.success("✅ Interview Completed")
+
             st.write("## Final Report")
-            st.write(f"Candidate: {st.session_state.candidate_name}")
-            st.write(f"Topic: {st.session_state.topic}")
-            st.write(f"Difficulty: {st.session_state.difficulty}")
-            st.write(f"Score: {score}/{total}")
-            st.write(f"Percentage: {percentage:.2f}%")
+            st.write(
+                f"Candidate: {st.session_state.candidate_name}"
+            )
+            st.write(
+                f"Topic: {st.session_state.topic}"
+            )
+            st.write(
+                f"Difficulty: {st.session_state.difficulty}"
+            )
+            st.write(
+                f"Score: {score}/{total}"
+            )
+            st.write(
+                f"Percentage: {percentage:.2f}%"
+            )
 
             if percentage >= 80:
                 performance = "Excellent"
@@ -222,7 +255,9 @@ else:
             else:
                 performance = "Needs Improvement"
 
-            st.write(f"Performance: {performance}")
+            st.write(
+                f"Performance: {performance}"
+            )
 
             if st.button("Restart Interview"):
 
