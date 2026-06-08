@@ -1,9 +1,10 @@
 import streamlit as st
 import google.generativeai as genai
 import json
+import re
 
 # -----------------------------
-# Page Config
+# PAGE CONFIG
 # -----------------------------
 st.set_page_config(page_title="Mock Interview Agent")
 st.title("🎤 Mock Interview Agent")
@@ -20,10 +21,9 @@ except Exception as e:
     st.stop()
 
 # -----------------------------
-# MODEL (YOUR REQUESTED MODEL)
+# MODEL (USER REQUESTED)
 # -----------------------------
 model = genai.GenerativeModel("gemini-2.5-flash-lite")
-
 st.success("Gemini Model Initialized")
 
 # -----------------------------
@@ -70,7 +70,25 @@ Return only the question.
         return "Unable to generate question."
 
 # -----------------------------
-# EVALUATE ANSWER (FIXED LOGIC)
+# CLEAN JSON EXTRACTOR (IMPORTANT FIX)
+# -----------------------------
+def extract_json(text):
+
+    text = text.strip()
+
+    # remove markdown if present
+    text = re.sub(r"```json", "", text)
+    text = re.sub(r"```", "", text)
+
+    # extract JSON block if extra text exists
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        return match.group()
+
+    return text
+
+# -----------------------------
+# EVALUATE ANSWER (FIXED)
 # -----------------------------
 def evaluate_answer(question, answer):
 
@@ -91,14 +109,17 @@ Return ONLY valid JSON:
     try:
         response = model.generate_content(prompt)
 
-        data = json.loads(response.text)
+        raw_text = response.text.strip()
+
+        clean_text = extract_json(raw_text)
+
+        data = json.loads(clean_text)
 
         return data
 
     except Exception as e:
         st.error("EVALUATION ERROR")
         st.error(str(e))
-
         return {
             "result": "Wrong",
             "correct_answer": "Unable to evaluate"
@@ -170,9 +191,9 @@ else:
         st.write("Correct Answer:", result["correct_answer"])
 
         # -----------------------------
-        # FIXED SCORING LOGIC
+        # SCORING FIX
         # -----------------------------
-        if result["result"].lower() == "correct":
+        if str(result["result"]).strip().lower() == "correct":
             st.session_state.score += 1
 
         # NEXT QUESTION
@@ -187,7 +208,7 @@ else:
 
             st.rerun()
 
-        # FINAL RESULT
+        # FINAL REPORT
         else:
 
             st.success("Interview Completed")
