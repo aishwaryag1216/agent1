@@ -32,28 +32,29 @@ output_format = st.selectbox(
 # Generate Content Function
 # =========================
 def generate_content(subject, topic):
-    prompt = f"""
-    Generate detailed lecture content.
+    try:
+        prompt = f"""
+        Subject: {subject}
+        Topic: {topic}
 
-    Subject: {subject}
-    Topic: {topic}
+        Generate detailed lecture content.
+        """
 
-    Include:
-    - Introduction
-    - Key Concepts
-    - Explanation
-    - Examples
-    - Summary
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
 
-    Make it suitable for classroom teaching.
-    """
+        return response.text
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    except Exception as e:
+        st.error(f"Gemini Error: {e}")
+        return None
 
-    return response.text
+  
+
+        return response.text 
+       
 
 # =========================
 # Create DOCX
